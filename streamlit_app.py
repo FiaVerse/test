@@ -1,100 +1,49 @@
 import cv2
-import mediapipe as mp
-
-import tempfile
 import streamlit as st
+import numpy as np
+from PIL import Image
 
 
-#demo video 
-DEMO_VIDEO = 'ri1.mp4'
+def brighten_image(image, amount):
+    img_bright = cv2.convertScaleAbs(image, beta=amount)
+    return img_bright
 
 
-
-#mediapipe inbuilt solutions 
-mp_face_detection = mp.solutions.face_detection
-mp_drawing = mp.solutions.drawing_utils
-
+def blur_image(image, amount):
+    blur_img = cv2.GaussianBlur(image, (11, 11), amount)
+    return blur_img
 
 
+def enhance_details(img):
+    hdr = cv2.detailEnhance(img, sigma_s=12, sigma_r=0.15)
+    return hdr
 
 
-def main():
+def main_loop():
+    st.title("OpenCV Demo App")
+    st.subheader("This app allows you to play with Image filters!")
+    st.text("We use OpenCV and Streamlit for this demo")
 
-    #title 
-    st.title('Face Detection App')
+    blur_rate = st.sidebar.slider("Blurring", min_value=0.5, max_value=3.5)
+    brightness_amount = st.sidebar.slider("Brightness", min_value=-50, max_value=50, value=0)
+    apply_enhancement_filter = st.sidebar.checkbox('Enhance Details')
 
-    #sidebar title
-    st.sidebar.title('Face Detection App')
+    image_file = st.file_uploader("Upload Your Image", type=['jpg', 'png', 'jpeg'])
+    if not image_file:
+        return None
 
-    st.sidebar.subheader('Parameters')
-    #creating a button for webcam
-    use_webcam = st.sidebar.button('Use Webcam')
-    #creating a slider for detection confidence 
-    detection_confidence = st.sidebar.slider('Min Detection Confidence', min_value =0.0,max_value = 1.0,value = 0.5)
-    
-    #model selection 
-    model_selection = st.sidebar.selectbox('Model Selection',options=[0,1,2])
-    st.markdown(' ## Output')
-    stframe = st.empty()
-    
-    #file uploader
-    video_file_buffer = st.sidebar.file_uploader("Upload a video", type=[ "mp4", "mov",'avi','asf', 'm4v' ])
+    original_image = Image.open(image_file)
+    original_image = np.array(original_image)
 
-    
-    #temporary file name 
-    tfflie = tempfile.NamedTemporaryFile(delete=False)
+    processed_image = blur_image(original_image, blur_rate)
+    processed_image = brighten_image(processed_image, brightness_amount)
 
-    if not video_file_buffer:
+    if apply_enhancement_filter:
+        processed_image = enhance_details(processed_image)
 
-        if use_webcam:
-            vid = cv2.VideoCapture(0)
-        else:
-            vid = cv2.VideoCapture(DEMO_VIDEO)
-            tfflie.name = DEMO_VIDEO
-    
-    else:
-        tfflie.write(video_file_buffer.read())
-        vid = cv2.VideoCapture(tfflie.name)
+    st.text("Original Image vs Processed Image")
+    st.image([original_image, processed_image])
 
-    #values 
-    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = int(vid.get(cv2.CAP_PROP_FPS))
-    #codec = cv2.VideoWriter_fourcc(*FLAGS.output_format)
-    codec = cv2.VideoWriter_fourcc('V','P','0','9')
-    out = cv2.VideoWriter('output1.webm', codec, fps, (width, height))
-
-
-    st.sidebar.text('Input Video')
-    st.sidebar.video(tfflie.name)
-
-    # drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
-
-
-    with mp_face_detection.FaceDetection(
-    model_selection=model_selection, min_detection_confidence=detection_confidence) as face_detection:
-        
-        while vid.isOpened():
-
-            ret, image = vid.read()
-
-            if not ret:
-                break
-            image.flags.writeable = False
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            results = face_detection.process(image)
-
-            if results.detections:
-                for detection in results.detections:
-                    mp_drawing.draw_detection(image, detection)
-            stframe.image(image,use_column_width=True)
-
-        vid.release()
-        out.release()
-        cv2.destroyAllWindows()
-
-    st.success('Video is Processed')
-    st.stop()
 
 if __name__ == '__main__':
-    main()
+    main_loop()
